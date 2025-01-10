@@ -5,15 +5,6 @@ using System.Text;
 
 namespace LineAdjustment
 {
-    public static class RangeExtensions
-    {
-        public static int GetLength(this Range range, int collectionLength)
-        {
-            var (_, length) = range.GetOffsetAndLength(collectionLength);
-            return length;
-        }
-    }
-
     public class LineAdjustmentAlgorithmFast
     {
         public string Transform(string input, int lineWidth)
@@ -23,86 +14,130 @@ namespace LineAdjustment
             
             if (string.IsNullOrWhiteSpace(input))
                 return "";
+            
+            // Разбиваем исходный текст на слова.
 
             var inputSpan = input.AsSpan();
-            
-            Span<Range> words = stackalloc Range[100];
-            var wordsCount = inputSpan.Split(words, ' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            
-            if (wordsCount == 0)
-                return "";
+            var words = SplitIntoWords(inputSpan);
 
-            // Length of each word shouldn't be longer than line width.
+            // Если хотя бы одно слово длиннее чем результирующая строка, то проводим нормализацию.
 
-            if (true)//words.Any(word => word.Length > lineWidth))
+            if (words.Any(word => word.GetLength(input.Length) > lineWidth))
             {
-                words = NormalizeWordList(words, wordsCount, lineWidth, inputSpan);
-                wordsCount = words.Length;
+                words = NormalizeWordList(words, lineWidth, inputSpan);
             }
             
-            var sb = new StringBuilder(input.Length * 2); // Enough capacity for only 1 memory allocation
-           
-            var lineLength = 0;
-            var lineWords = new List<Range>(10);
+            var result = new StringBuilder(input.Length * 2); // Достаточная емкость для ровно одного выделения памяти
+
+            // Накапливаем слова, которые вмещаются в строку, после этого создаем из них строку и добавляем
+            // в результат. Так, пока слова не закончатся.
             
-            //foreach (var word in words)
-            for (var i = 0; i < wordsCount; i++)
+            var currentLineLength = 0;
+            var currentLineWords = new List<Range>(10);
+            
+            foreach (var word in words)
             {
-                var word = words[i];
-                // If we collected enough words then we will compose a line.
-                if (lineLength + word.GetLength(inputSpan.Length) + lineWords.Count > lineWidth)
+                if (currentLineLength + word.GetLength(inputSpan.Length) + currentLineWords.Count > lineWidth)
                 {
-                    if (sb.Length > 0)
-                        sb.AppendLine();
+                    ComposeLineAndAppend(currentLineWords, lineWidth, inputSpan, result);
                     
-                    ComposeLineAndAppend(lineWords, lineWidth, sb, inputSpan);
-                    
-                    lineLength = 0;
-                    lineWords.Clear();
+                    currentLineLength = 0;
+                    currentLineWords.Clear();
                 }
                 
-                lineWords.Add(word);
-                lineLength += word.GetLength(inputSpan.Length);
+                currentLineWords.Add(word);
+                currentLineLength += word.GetLength(inputSpan.Length);
             }
 
-            // Process the last line if any words left.
+            // Добавляем последнюю строку, если слова остались в буфере.
             
-            if (lineWords.Count > 0)
-            {
-                if (sb.Length > 0)
-                    sb.AppendLine();
-                
-                ComposeLineAndAppend(lineWords, lineWidth, sb, inputSpan);
+            if (currentLineWords.Count > 0)
+            {   
+                ComposeLineAndAppend(currentLineWords, lineWidth, inputSpan, result);
             }
 
-            return sb.ToString();
+            return result.ToString();
         }
-
-        private Span<Range> NormalizeWordList(Span<Range> words, int wordsCount, int lineWidth, ReadOnlySpan<char> inputSpan)
+        
+        /// <summary>
+        /// Создает строку из указанных слов и добавляет её в указанный <see cref="StringBuilder"/>. 
+        /// </summary>
+        /// <param name="words">Список слов.</param>
+        /// <param name="lineWidth">Длина строки.</param>
+        /// <param name="inputSpan">Входной массив символов, из которого берутся слова.</param>
+        /// <param name="result">Результат, в который будет добавлена строка.</param>
+        private void ComposeLineAndAppend(List<Range> words, int lineWidth, ReadOnlySpan<char> inputSpan, StringBuilder result)
         {
-            var normalized = new List<Range>(words.Length * 2);
+            // Расстояние между словами нужно заполнять равным количеством пробелов, если же это не возможно, то добавляем
+            // еще по пробелу между словами слева направо. Если в строке помещается только 1 слово, то дополнить строку 
+            // пробелами справа.
             
-            //foreach (var word in words)
-            for (var w = 0; w < wordsCount; w++)
-            {
-                var word = words[w];
-                
-                if (word.GetLength(inputSpan.Length) > lineWidth)
-                {
-                    // Word can be longer than 2+ lineWidth.
-                    var parts = word.GetLength(inputSpan.Length) / lineWidth;
+            if (result.Length > 0)
+                result.AppendLine();
+            
+            var inputLength = inputSpan.Length; // inputSpan нельзя использовать в Sum()
 
-                    var i = 0;
-                    for (; i < parts; i++)
+            if (words.Count == 1)
+            {
+                result.Append(inputSpan[words[0]]);
+                result.Append(' ', lineWidth - words[0].GetLength(inputLength));
+                return;
+            }
+            
+            var total = lineWidth - words.Sum(w => w.GetLength(inputLength));
+            var equal = total / (words.Count - 1); // Обязательные пробелы между словами
+            var extra = total % (words.Count - 1); // Дополнительные пробелы, добавляемые слева направо 
+
+            for (var i = 0; i < words.Count - 1; i++)
+            {
+                result.Append(inputSpan[words[i]]);
+                result.Append(' ', equal);
+
+                if (extra != 0)
+                {
+                    result.Append(' ');
+                    extra--;
+                }
+            }
+            
+            // Последнее слово добавляем без пробелов после него.
+            
+            result.Append(inputSpan[words[^1]]);
+        }
+        
+        /// <summary>
+        /// Нормализует список слов так, чтобы они помещались в строку.
+        /// </summary>
+        /// <param name="words">Список слов.</param>
+        /// <param name="lineWidth">Длина строки.</param>
+        /// <param name="inputSpan">Входной массив символов, из которого берутся слова.</param>
+        /// <returns>Возвращает список, в котором все слова не длиннее строки.</returns>
+        private List<Range> NormalizeWordList(List<Range> words, int lineWidth, ReadOnlySpan<char> inputSpan)
+        {
+            var normalized = new List<Range>(words.Count * 2);
+            
+            foreach (var word in words)
+            {
+                var wordLength = word.GetLength(inputSpan.Length);
+                
+                if (wordLength > lineWidth)
+                {
+                    // Разбиваем слишком длинное слово на кусочки равные длине строки + остаток.
+                    
+                    var fullChunks= wordLength / lineWidth;
+                    var remainder = wordLength % lineWidth;
+
+                    for (var i = 0; i < fullChunks ; i++)
                     {
-                        normalized.Add(new Range(word.Start.Value + i * lineWidth,
-                            word.Start.Value + i * lineWidth + lineWidth));
-                        //normalized.Add(word.Substring(i * lineWidth, lineWidth));
+                        var start = word.Start.Value + i * lineWidth;
+                        normalized.Add(new Range(start, start + lineWidth));
                     }
                     
-                    normalized.Add(new Range(word.Start.Value + i * lineWidth, word.End.Value));
-                    //normalized.Add(Range.StartAt(word.Start.Value + i * lineWidth));
-                    //normalized.Add(word.Substring(i * lineWidth));
+                    if (remainder > 0)
+                    {
+                        var start = word.Start.Value + fullChunks * lineWidth;
+                        normalized.Add(new Range(start, word.End.Value));
+                    }
                 }
                 else
                 {
@@ -110,42 +145,42 @@ namespace LineAdjustment
                 }
             }
 
-            return normalized.ToArray();
+            return normalized;
         }
-
-        private void ComposeLineAndAppend(List<Range> words, int lineWidth, StringBuilder sb, ReadOnlySpan<char> inputSpan)
+        
+        /// <summary>
+        /// Разбивает текст на слова.
+        /// </summary>
+        /// <param name="input">Исходный текст в виде <see cref="ReadOnlySpan{T}"/>.</param>
+        /// <returns>Возвращает список указателей на слова в виде <see cref="Range"/>.</returns>
+        private List<Range> SplitIntoWords(ReadOnlySpan<char> input)
         {
-            int inputLength = inputSpan.Length;
+            var result = new List<Range>(input.Length / 6); // Средняя длина слова
+
+            // Разбиваем за несколько итераций, потому что так работает Split() у ReadOnlySpan.
             
-            // Расстояние между словами нужно заполнять равным количеством пробелов, если же это не возможно, то добавляем
-            // еще по пробелу между словами слева направо. Если в строке помещается только 1 слово, то дополнить строку 
-            // пробелами справа.
+            Span<Range> tempRanges = stackalloc Range[32];
 
-            if (words.Count == 1)
+            while (true)
             {
-                sb.Append(inputSpan[words[0]]);
-                sb.Append(' ', lineWidth - words[0].GetLength(inputLength));
-                return;
-            }
-            
-            var total = lineWidth - words.Sum(w => w.GetLength(inputLength));
-            var equal = total / (words.Count - 1); // Spaces between words we always add
-            var extra = total % (words.Count - 1); // Extra spaces that we'll use to add from left to right 
+                var count = input.Split(tempRanges, ' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (count == 0)
+                    break;
 
-            for (var i = 0; i < words.Count - 1; i++)
-            {
-                sb.Append(inputSpan[words[i]]);
-                sb.Append(' ', equal);
-
-                if (extra != 0)
+                for (var i = 0; i < count; i++)
                 {
-                    sb.Append(' ');
-                    extra--;
+                    result.Add(tempRanges[i]);
                 }
+
+                // Если еще остались слова, то переходим к следующей части исходного текста.
+
+                if (count < tempRanges.Length)
+                    break;
+
+                input = input[tempRanges[^1].End..];
             }
-            
-            // Last word we add without spaces after.
-            sb.Append(inputSpan[words[^1]]);
+
+            return result;
         }
     }
 }

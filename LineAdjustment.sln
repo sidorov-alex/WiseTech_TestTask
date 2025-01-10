@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineAdjustment", "LineAdjus
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineAdjustment.Tests", "LineAdjustment.Tests\LineAdjustment.Tests.csproj", "{5F3A22D8-FE1D-41DC-903B-BE2CD37098DB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineAdjustment.Benchmark", "LineAdjustment.Benchmark\LineAdjustment.Benchmark.csproj", "{63E794AE-EC35-40A7-BAD9-9AD3E0F6FD93}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{5F3A22D8-FE1D-41DC-903B-BE2CD37098DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5F3A22D8-FE1D-41DC-903B-BE2CD37098DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5F3A22D8-FE1D-41DC-903B-BE2CD37098DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63E794AE-EC35-40A7-BAD9-9AD3E0F6FD93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63E794AE-EC35-40A7-BAD9-9AD3E0F6FD93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63E794AE-EC35-40A7-BAD9-9AD3E0F6FD93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63E794AE-EC35-40A7-BAD9-9AD3E0F6FD93}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
